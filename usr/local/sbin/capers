@@ -1,0 +1,121 @@
+#!/usr/bin/env python
+
+#import getopt
+import sys
+import os
+import subprocess
+import glob
+import re
+
+STATE_FILE="/var/tmp/capers_state"
+BLACK_LISTS_DIR="/etc/blacklist.d"
+BLACK_LISTS_FILE="/etc/blacklists"
+PRIORITY_APPS=['capers']
+APP_INSTALL_DESKTOP_DIR = "/usr/share/app-install/desktop"
+HOLD_LIST = "/etc/capers-hold"
+
+def touch(filename, times=None):
+    with file( filename, 'a'):
+        os.utime(filename, times)
+
+class Cache( ):
+    def __init__( self ):
+        self.perform_update()
+
+    def hold_packages( self ):
+        f = open( HOLD_LIST, 'r' )
+        for line in f:
+            p1 = subprocess.Popen(['echo',line + ' hold'], stdout=subprocess.PIPE)
+            p2 = subprocess.Popen(['dpkg','--set-selections'], stdin=p1.stdout, stdout=subprocess.PIPE)
+
+    def perform_update( self ):
+        subprocess.call( ['apt-get','update'],stdout=subprocess.PIPE )
+
+    def full_clean( self ):
+        subprocess.call( ['dpkg','--configure','-a'], stdout=subprocess.PIPE )
+        subprocess.call( ['apt-get','install','-f','-y','--force-yes'], stdout=subprocess.PIPE )
+        subprocess.call( ['apt-get','autoremove','-y','--force-yes'], stdout=sys.stdout )
+
+    def blacklist_apps( self ):
+        self.refresh_blacklists()
+        self.blacklist_applications( self.read_blacklists() )
+
+    def refresh_blacklists( self ):
+        blacklist_file = open( BLACK_LISTS_FILE, 'r' )
+        blacklists = blacklist_file.read()
+        blacklist_file.close()        
+        subprocess.call( ['apt-get','install','--reinstall','-y','--force-yes'] + blacklists.split() )
+
+    def read_blacklists( self ):
+        return_value = []
+        for blacklist in glob.glob( BLACK_LISTS_DIR + '/*' ):
+            f = open( blacklist, 'r' )
+            for line in f:
+                return_value.append( line.strip() )
+        return return_value
+
+    def blacklist_applications( self, packages ):
+        if packages:
+            for package in packages:
+                try:
+                    if subprocess.check_output( ['dpkg','-l',package] ).split('\n')[-2].startswith('ii'):
+                        subprocess.call( ['apt-get','purge',package] )
+                except:
+                    pass
+            for package in packages:
+                self.remove_from_index( package )
+            subprocess.call( [ 'update-software-center' ] )
+
+    def remove_from_index( self, package_name ):
+        counter = 0
+        for files in os.listdir( "/var/lib/apt/lists" ):
+            files = "/var/lib/apt/lists/" + files
+            if ( os.path.isfile( files ) ) and ( files != "/var/lib/apt/lists/lock" ):
+                index_file = open( files, 'r' )
+                file_in_mem = index_file.read()
+                index_file.close()
+                if file_in_mem.find( "Package: " + package_name  ) > -1:
+                    index_file = open( files, 'w' )
+                    file_in_mem = file_in_mem.split( "\n" )
+                    counter = -1
+                    while counter < len( file_in_mem )-1:
+                        counter = counter + 1
+                        if "Package: " + package_name == file_in_mem[ counter ].strip():
+                            while file_in_mem[ counter ].strip() is not "":
+                                counter=counter + 1
+                        index_file.write( file_in_mem[ counter ] + "\n" )
+                    index_file.close()
+        os.chdir( APP_INSTALL_DESKTOP_DIR )
+        desktop_files = os.listdir( "." )
+        for desktop_file in desktop_files:
+            if desktop_file.startswith( package_name + ":" ):
+                os.remove( desktop_file )
+
+def clean_up_kernels():
+    kernel_versions = []
+    for kernel in glob.glob('/boot/vmlinuz*'):
+        kernel_versions.append( re.findall( '[0-9]\.[0-9]\.[0-9]-[0-9][0-9]', kernel)[0] )
+    remove_packages = []
+    for version in kernel_versions:
+        if version < max( kernel_versions ):
+            remove_packages.append( "linux-headers-" + version )
+            remove_packages.append( "linux-image-" + version )
+    if remove_packages:
+        subprocess.call( ['apt-get','purge','-y','--force-yes'] + remove_packages )
+
+def main( argv ):
+    # make a "running" file. This allows for an interrupted operation to be catered for.
+    touch( STATE_FILE )
+    cache = Cache()
+    cache.full_clean()
+    cache.blacklist_apps()
+    os.remove( STATE_FILE )
+    subprocess.call(['apt-get','-d','dist-upgrade','-y','--force-yes'])
+    touch( STATE_FILE )
+    subprocess.call(['apt-get','dist-upgrade','-y','--force-yes'])
+    clean_up_kernels()
+    subprocess.call(['apt-get','clean'])
+    os.remove( STATE_FILE )
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

@@ -1,0 +1,31 @@
+#!/bin/bash
+
+STATE_FILE="/var/tmp/capers_state"
+CAPERS_LOG="/var/log/capers.log"
+
+export PATH="/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin"
+
+#trigger on all interfaces except loopback
+if [ "$IF" != "lo" ] ; then
+  if [ ! -z "$( ls /home/* )" ] ; then
+    case $2 in
+      up)
+        if [ -f "$STATE_FILE" ] && [ -z "$( ps -e | grep capers )" ] ; then
+          dpkg --configure -a
+          # make sure we can really connect...
+          ping -c 1 cims.co.nz && (
+            apt-get update
+            apt-get install -f
+            #We've done as much as we can automatically to ensure the system isn't broken.
+            #Assume the system is in a happy state.
+            rm "$STATE_FILE"
+            echo "$(date) - Upgrade didn't complete. Have cleaned up." >> "$CAPERS_LOG"
+          ) ||
+          echo "$(date) - Upgrade didn't complete. Could not connect. Clean up not done." >> "$CAPERS_LOG"
+        else
+          capers
+        fi
+    ;;
+    esac
+  fi
+fi

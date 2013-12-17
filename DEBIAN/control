@@ -1,0 +1,8 @@
+Package: capers
+Version: 0.0.9~precise
+Priority: optional
+Section: unknown
+Essential: no
+Architecture: all
+Maintainer: Nevyn Hira <nevynh@gmail.com>
+Description: Handles unattended upgrades transparenty (unattended) with blacklist functionality.
