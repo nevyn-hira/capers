@@ -109,11 +109,13 @@ def main( argv ):
     cache.full_clean()
     cache.blacklist_apps()
     os.remove( STATE_FILE )
+    #Download files
     subprocess.call(['apt-get','-d','dist-upgrade','-y','--force-yes'])
     touch( STATE_FILE )
-    subprocess.call(['apt-get','dist-upgrade','-y','--force-yes'])
+    #Apply updates
+    if subprocess.call(['apt-get','dist-upgrade','-y','--force-yes']) == 0:
+        subprocess.call(['apt-get','clean'])
     clean_up_kernels()
-    subprocess.call(['apt-get','clean'])
     os.remove( STATE_FILE )
 
 if __name__ == "__main__":
