@@ -11,6 +11,7 @@ if [ "$IF" != "lo" ] ; then
     case $2 in
       up)
         if [ -f "$STATE_FILE" ] && [ -z "$( ps -e | grep capers )" ] ; then
+          DEBIAN_FRONTEND="noninteractive"
           dpkg --configure -a
           # make sure we can really connect...
           ping -c 1 cims.co.nz && (
