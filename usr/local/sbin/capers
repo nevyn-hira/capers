@@ -58,7 +58,8 @@ class Cache( ):
             for package in packages:
                 try:
                     if subprocess.check_output( ['dpkg','-l',package] ).split('\n')[-2].startswith('ii'):
-                        subprocess.call( ['apt-get','purge',package] )
+                        print "REMOVING " + package
+                        subprocess.call( ['apt-get','purge',package,'-y','--force-yes'] )
                 except:
                     pass
             for package in packages:
