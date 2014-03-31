@@ -59,6 +59,8 @@ class Cache( ):
 
     def blacklist_applications( self, packages ):
         if packages:
+            #Removing from apt indexes (code refraction for speed)
+            remove_from_apt_index
             for package in packages:
                 try:
                     if subprocess.check_output( ['dpkg','-l',package] ).split('\n')[-2].startswith('ii'):
@@ -66,50 +68,58 @@ class Cache( ):
                         subprocess.call( ['apt-get','purge',package,'-y','--force-yes'] )
                 except:
                     pass
+            #apt indexes
+                    counter = 0
+
+            
+            #software centre indexes
             for package in packages:
-                self.remove_from_index( package )
+                self.remove_from_sc_index( package )
             subprocess.call( [ 'update-software-center' ] )
 
     def acquire_apt_lock( self ):
-	for i in range(0, 100):
-           try: 
-              lock.acquire()
-              return True
-           except lock.LockFailedError as error:
-              print "Someone is holding the apt lock, sleeping until they release it"
-              time.sleep(5)
-	return False
+        for i in range(0, 100):
+               try: 
+                  lock.acquire()
+                  return True
+               except lock.LockFailedError as error:
+                  print "Someone is holding the apt lock, sleeping until they release it"
+                  time.sleep(5)
+        return False
 
-    def remove_from_index( self, package_name ):
-        counter = 0
-	print "removing", package_name, "from the index"
-	# acquire the lock before modifying the files
-	if not self.acquire_apt_lock():
-		print "Unable to get the apt lock, not removing package", package_name
-		return
-        for files in os.listdir( "/var/lib/apt/lists" ):
-            files = "/var/lib/apt/lists/" + files
-            if ( os.path.isfile( files ) ) and ( files != "/var/lib/apt/lists/lock" ):
-                index_file = open( files, 'r' )
-                file_in_mem = index_file.read()
-                index_file.close()
-                if file_in_mem.find( "Package: " + package_name  ) > -1:
-                    index_file = open( files, 'w' )
-                    file_in_mem = file_in_mem.split( "\n" )
-                    counter = -1
-                    while counter < len( file_in_mem )-1:
-                        counter = counter + 1
-                        if "Package: " + package_name == file_in_mem[ counter ].strip():
-                            while file_in_mem[ counter ].strip() is not "":
-                                counter=counter + 1
-                        index_file.write( file_in_mem[ counter ] + "\n" )
+    def remove_from_sc_index( self, package_name ):
+            os.chdir( APP_INSTALL_DESKTOP_DIR )
+            desktop_files = os.listdir( "." )
+            for desktop_file in desktop_files:
+                if desktop_file.startswith( package_name + ":" ):
+                    os.remove( desktop_file )
+    
+    def remove_from_apt_index( self, packages ):
+        # acquire the lock before modifying the files
+        if not self.acquire_apt_lock():
+            print "Unable to get the apt lock, not removing packages from index"
+            return
+        else:
+            for files in os.listdir( "/var/lib/apt/lists" ):
+                files = "/var/lib/apt/lists/" + files
+                if ( os.path.isfile( files ) ) and ( files != "/var/lib/apt/lists/lock" ):
+                    index_file = open( files, 'r' )
+                    file_in_mem = index_file.read()
                     index_file.close()
-        os.chdir( APP_INSTALL_DESKTOP_DIR )
-        desktop_files = os.listdir( "." )
-        for desktop_file in desktop_files:
-            if desktop_file.startswith( package_name + ":" ):
-                os.remove( desktop_file )
-	lock.release()
+                    for package_name in packages:
+                        if file_in_mem.find( "Package: " + package_name  ) > -1:
+                            index_file = open( files, 'w' )
+                            file_in_mem = file_in_mem.split( "\n" )
+                            counter = -1
+                            while counter < len( file_in_mem )-1:
+                                counter = counter + 1
+                                if "Package: " + package_name == file_in_mem[ counter ].strip():
+                                    while file_in_mem[ counter ].strip() is not "":
+                                        counter=counter + 1
+                                index_file.write( file_in_mem[ counter ] + "\n" )
+                            index_file.close()
+        lock.release()
+
 
 def clean_up_kernels():
     kernel_versions = []
