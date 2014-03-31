@@ -5,6 +5,8 @@ import os
 import subprocess
 import glob
 import re
+from aptdaemon import lock
+import time
 
 STATE_FILE="/var/tmp/capers_state"
 BLACK_LISTS_DIR="/etc/blacklist.d"
@@ -68,8 +70,23 @@ class Cache( ):
                 self.remove_from_index( package )
             subprocess.call( [ 'update-software-center' ] )
 
+    def acquire_apt_lock( self ):
+	for i in range(0, 100):
+           try: 
+              lock.acquire()
+              return True
+           except lock.LockFailedError as error:
+              print "Someone is holding the apt lock, sleeping until they release it"
+              time.sleep(5)
+	return False
+
     def remove_from_index( self, package_name ):
         counter = 0
+	print "removing", package_name, "from the index"
+	# acquire the lock before modifying the files
+	if not self.acquire_apt_lock():
+		print "Unable to get the apt lock, not removing package", package_name
+		return
         for files in os.listdir( "/var/lib/apt/lists" ):
             files = "/var/lib/apt/lists/" + files
             if ( os.path.isfile( files ) ) and ( files != "/var/lib/apt/lists/lock" ):
@@ -92,6 +109,7 @@ class Cache( ):
         for desktop_file in desktop_files:
             if desktop_file.startswith( package_name + ":" ):
                 os.remove( desktop_file )
+	lock.release()
 
 def clean_up_kernels():
     kernel_versions = []
