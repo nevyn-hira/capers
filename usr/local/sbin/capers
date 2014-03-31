@@ -50,7 +50,9 @@ class Cache( ):
         for blacklist in glob.glob( BLACK_LISTS_DIR + '/*' ):
             f = open( blacklist, 'r' )
             for line in f:
-                return_value.append( line.strip() )
+                line = line.strip()
+                if line != "":
+                    return_value.append( line.strip() )
         return return_value
 
     def blacklist_applications( self, packages ):
