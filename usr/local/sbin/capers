@@ -93,6 +93,8 @@ class Cache( ):
                     os.remove( desktop_file )
     
     def remove_from_apt_index( self, packages ):
+        t0 = time.time()
+        print "Removing blacklisted packages from index files"
         # acquire the lock before modifying the files
         if not self.acquire_apt_lock():
             print "Unable to get the apt lock, not removing packages from index"
@@ -116,6 +118,8 @@ class Cache( ):
                                         counter=counter + 1
                                 index_file.write( lines[ counter ] + "\n" )
                             index_file.close()
+        t1 = time.time()
+        print "finished in %f" % (t1 - t0)
         lock.release()
 
 
