@@ -7,6 +7,7 @@ import glob
 import re
 from aptdaemon import lock
 import time
+from io import BytesIO
 
 STATE_FILE="/var/tmp/capers_state"
 BLACK_LISTS_DIR="/etc/blacklist.d"
@@ -104,20 +105,25 @@ class Cache( ):
             for file_name in os.listdir( "/var/lib/apt/lists" ):
                 file_name = "/var/lib/apt/lists/" + file_name
                 if ( os.path.isfile( file_name ) ) and ( file_name != "/var/lib/apt/lists/lock" ):
-                    tmp_file_name = file_name + "caperstmp"
+                    # normally we don't change the file, so we don't write a new unchanged copy
+                    # this trades increased memory consumption for decreased io in the normal case
+                    changed = False
+                    new_content = BytesIO()
                     with open( file_name, 'r' ) as index_file:
-                       with open ( tmp_file_name, 'w') as tmp_file:
-                           for line in index_file:
-                               if line.strip() in packages:
-                                   print "Removing package", line,
-                                   try:
-                                       while index_file.next().strip() is not "":
-                                           pass
-                                   except StopIteration:
+                       for line in index_file:
+                           if line.strip() in packages:
+                               print "Removing package", line,
+                               changed = True
+                               try:
+                                   while index_file.next().strip() is not "":
                                        pass
-                               else:
-                                   tmp_file.write( line )
-                    os.rename( tmp_file_name, file_name)
+                               except StopIteration:
+                                   pass
+                           else:
+                               new_content.write( line )
+                    if changed:
+                        with open( file_name, 'w' ) as index_file:
+                            index_file.write(new_content.getvalue())
         t1 = time.time()
         print "finished in %f" % (t1 - t0)
         lock.release()
