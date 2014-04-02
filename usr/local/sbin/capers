@@ -107,14 +107,14 @@ class Cache( ):
                     for package_name in packages:
                         if file_in_mem.find( "Package: " + package_name  ) > -1:
                             index_file = open( files, 'w' )
-                            file_in_mem = file_in_mem.split( "\n" )
+                            lines = file_in_mem.split( "\n" )
                             counter = -1
-                            while counter < len( file_in_mem )-1:
+                            while counter < len( lines )-1:
                                 counter = counter + 1
-                                if "Package: " + package_name == file_in_mem[ counter ].strip():
-                                    while file_in_mem[ counter ].strip() is not "":
+                                if "Package: " + package_name == lines[ counter ].strip():
+                                    while lines[ counter ].strip() is not "":
                                         counter=counter + 1
-                                index_file.write( file_in_mem[ counter ] + "\n" )
+                                index_file.write( lines[ counter ] + "\n" )
                             index_file.close()
         lock.release()
 
