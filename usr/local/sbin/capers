@@ -98,15 +98,15 @@ class Cache( ):
             print "Unable to get the apt lock, not removing packages from index"
             return
         else:
-            for files in os.listdir( "/var/lib/apt/lists" ):
-                files = "/var/lib/apt/lists/" + files
-                if ( os.path.isfile( files ) ) and ( files != "/var/lib/apt/lists/lock" ):
-                    index_file = open( files, 'r' )
+            for file_name in os.listdir( "/var/lib/apt/lists" ):
+                file_name = "/var/lib/apt/lists/" + file_name
+                if ( os.path.isfile( file_name ) ) and ( file_name != "/var/lib/apt/lists/lock" ):
+                    index_file = open( file_name, 'r' )
                     file_in_mem = index_file.read()
                     index_file.close()
                     for package_name in packages:
                         if file_in_mem.find( "Package: " + package_name  ) > -1:
-                            index_file = open( files, 'w' )
+                            index_file = open( file_name, 'w' )
                             lines = file_in_mem.split( "\n" )
                             counter = -1
                             while counter < len( lines )-1:
