@@ -60,7 +60,7 @@ class Cache( ):
     def blacklist_applications( self, packages ):
         if packages:
             #Removing from apt indexes (code refraction for speed)
-            remove_from_apt_index( self, packages )
+            self.remove_from_apt_index( packages )
             for package in packages:
                 try:
                     if subprocess.check_output( ['dpkg','-l',package] ).split('\n')[-2].startswith('ii'):
