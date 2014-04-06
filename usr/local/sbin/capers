@@ -7,6 +7,7 @@ import glob
 import re
 from aptdaemon import lock
 import time
+from io import BytesIO
 
 STATE_FILE="/var/tmp/capers_state"
 BLACK_LISTS_DIR="/etc/blacklist.d"
@@ -60,7 +61,7 @@ class Cache( ):
     def blacklist_applications( self, packages ):
         if packages:
             #Removing from apt indexes (code refraction for speed)
-            remove_from_apt_index( self, packages )
+            self.remove_from_apt_index( packages )
             for package in packages:
                 try:
                     if subprocess.check_output( ['dpkg','-l',package] ).split('\n')[-2].startswith('ii'):
@@ -93,29 +94,38 @@ class Cache( ):
                     os.remove( desktop_file )
     
     def remove_from_apt_index( self, packages ):
+        t0 = time.time()
+        print "Removing blacklisted packages from index files"
         # acquire the lock before modifying the files
         if not self.acquire_apt_lock():
             print "Unable to get the apt lock, not removing packages from index"
             return
         else:
-            for files in os.listdir( "/var/lib/apt/lists" ):
-                files = "/var/lib/apt/lists/" + files
-                if ( os.path.isfile( files ) ) and ( files != "/var/lib/apt/lists/lock" ):
-                    index_file = open( files, 'r' )
-                    file_in_mem = index_file.read()
-                    index_file.close()
-                    for package_name in packages:
-                        if file_in_mem.find( "Package: " + package_name  ) > -1:
-                            index_file = open( files, 'w' )
-                            file_in_mem = file_in_mem.split( "\n" )
-                            counter = -1
-                            while counter < len( file_in_mem )-1:
-                                counter = counter + 1
-                                if "Package: " + package_name == file_in_mem[ counter ].strip():
-                                    while file_in_mem[ counter ].strip() is not "":
-                                        counter=counter + 1
-                                index_file.write( file_in_mem[ counter ] + "\n" )
-                            index_file.close()
+            packages = set([ "Package: " + package for package in packages ])
+            for file_name in os.listdir( "/var/lib/apt/lists" ):
+                file_name = "/var/lib/apt/lists/" + file_name
+                if ( os.path.isfile( file_name ) ) and ( file_name != "/var/lib/apt/lists/lock" ):
+                    # normally we don't change the file, so we don't write a new unchanged copy
+                    # this trades increased memory consumption for decreased io in the normal case
+                    changed = False
+                    new_content = BytesIO()
+                    with open( file_name, 'r' ) as index_file:
+                       for line in index_file:
+                           if line.strip() in packages:
+                               print "Removing package", line,
+                               changed = True
+                               try:
+                                   while index_file.next().strip() is not "":
+                                       pass
+                               except StopIteration:
+                                   pass
+                           else:
+                               new_content.write( line )
+                    if changed:
+                        with open( file_name, 'w' ) as index_file:
+                            index_file.write(new_content.getvalue())
+        t1 = time.time()
+        print "finished in %f" % (t1 - t0)
         lock.release()
 
 
